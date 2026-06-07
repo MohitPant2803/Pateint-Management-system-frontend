@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import axios from 'axios';
 import { 
-  FileText, Upload, Calendar, Trash2, Edit3, History, Eye, Plus, X, File, Image
+  FileText, Calendar, Trash2, Edit3, History, Eye, Plus, X, File, Image, Link
 } from 'lucide-react';
 import { API_URL } from '../context/AuthContext';
 
@@ -64,9 +64,10 @@ export const ReportManager: React.FC<ReportManagerProps> = ({
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  // File upload states
-  const [uploading, setUploading] = useState(false);
-  const [uploadError, setUploadError] = useState('');
+  // Link attachment states
+  const [linkTitle, setLinkTitle] = useState('');
+  const [linkUrl, setLinkUrl] = useState('');
+  const [submittingLink, setSubmittingLink] = useState(false);
 
   // Reports and files are passed as props from the parent patientContext
 
@@ -147,28 +148,30 @@ export const ReportManager: React.FC<ReportManagerProps> = ({
   };
 
   // File Upload trigger
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleAttachLinkSubmit = async () => {
+    if (!linkTitle.trim() || !linkUrl.trim()) {
+      alert("Link Title and URL are required.");
+      return;
+    }
+    if (!linkUrl.trim().startsWith('http://') && !linkUrl.trim().startsWith('https://')) {
+      alert("Invalid URL. Must start with http:// or https://");
+      return;
+    }
 
-    setUploadError('');
-    setUploading(true);
-
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('patientId', patientId);
-
+    setSubmittingLink(true);
     try {
-      await axios.post('/reports/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+      await axios.post('/reports/link', {
+        patientId,
+        fileName: linkTitle.trim(),
+        storageUrl: linkUrl.trim()
       });
-      onUpdate?.();
+      setLinkTitle('');
+      setLinkUrl('');
+      onUpdate?.(); // Refetch context
     } catch (err: any) {
-      setUploadError(err.response?.data?.message || 'Failed to upload document.');
+      alert(err.response?.data?.message || 'Failed to attach medical link.');
     } finally {
-      setUploading(false);
-      // Reset input value
-      e.target.value = '';
+      setSubmittingLink(false);
     }
   };
 
@@ -292,51 +295,63 @@ export const ReportManager: React.FC<ReportManagerProps> = ({
         )}
       </div>
 
-      {/* RIGHT 1 COLUMN: Uploaded Files */}
+      {/* RIGHT 1 COLUMN: Attached Links */}
       <div className="space-y-6">
         <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
-          <Upload size={18} className="text-sky-500" />
-          Attached Medical Files
+          <Link size={18} className="text-sky-500" />
+          Attached Medical Links
         </h3>
 
-        {/* Upload Dropzone */}
-        <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl p-5 text-center hover:border-sky-300 hover:bg-sky-50/10 transition-all relative">
-          <input
-            type="file"
-            onChange={handleFileUpload}
-            disabled={uploading}
-            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-            accept=".pdf,.docx,.png,.jpg,.jpeg"
-          />
-          <div className="flex flex-col items-center justify-center">
-            <Upload className="text-slate-400 mb-2" size={24} />
-            <p className="text-xs font-bold text-slate-700">
-              {uploading ? 'Uploading clinical file...' : 'Choose or drag medical files'}
-            </p>
-            <p className="text-[10px] text-slate-400 mt-1">
-              Supports PDF, DOCX, PNG, JPG, JPEG (Max 10MB)
-            </p>
+        {/* Link Attachment Form */}
+        <div className="bg-white border border-slate-100 shadow-premium p-5 rounded-2xl space-y-4">
+          <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+            Attach Medical Link
+          </h4>
+          <div className="space-y-3">
+            <div>
+              <input
+                type="text"
+                value={linkTitle}
+                onChange={(e) => setLinkTitle(e.target.value)}
+                placeholder="Link Title (e.g. Chest CT Scan)"
+                className="input-premium text-xs"
+              />
+            </div>
+            <div>
+              <input
+                type="text"
+                value={linkUrl}
+                onChange={(e) => setLinkUrl(e.target.value)}
+                placeholder="Link URL (e.g. https://drive.google.com/...)"
+                className="input-premium text-xs"
+              />
+            </div>
+            <button
+              onClick={handleAttachLinkSubmit}
+              disabled={submittingLink}
+              className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-sky-500 hover:bg-sky-600 disabled:bg-sky-300 text-white rounded-lg text-xs font-semibold shadow-sm transition-all"
+            >
+              <Plus size={14} />
+              {submittingLink ? 'Attaching Link...' : 'Attach Link'}
+            </button>
           </div>
         </div>
 
-        {uploadError && (
-          <div className="p-3 bg-red-50 border border-red-100 text-red-600 rounded-lg text-xs font-medium">
-            {uploadError}
-          </div>
-        )}
-
-        {/* Files List */}
+        {/* Files & Links List */}
         {files.length === 0 ? (
           <div className="bg-white border border-slate-100 shadow-premium p-6 rounded-2xl text-center text-xs text-slate-400">
-            No attached files. Upload medical scans, consents, or labs.
+            No attached medical links. Use the form above to add links.
           </div>
         ) : (
           <div className="space-y-3">
             {files.map((file) => {
               const isImage = file.fileType.startsWith('image/');
+              const isLink = file.fileType === 'link';
               
-              // Backend host address
-              const fileUrl = `${API_URL.replace('/api', '')}${file.storageUrl}`;
+              // Backend host address or direct external link
+              const fileUrl = isLink 
+                ? file.storageUrl 
+                : `${API_URL.replace('/api', '')}${file.storageUrl}`;
 
               return (
                 <div
@@ -345,14 +360,14 @@ export const ReportManager: React.FC<ReportManagerProps> = ({
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center text-slate-400 shrink-0">
-                      {isImage ? <Image size={16} /> : <File size={16} />}
+                      {isLink ? <Link size={16} /> : isImage ? <Image size={16} /> : <File size={16} />}
                     </div>
                     <div className="min-w-0">
                       <p className="text-xs font-bold text-slate-700 truncate" title={file.fileName}>
                         {file.fileName}
                       </p>
                       <p className="text-[10px] text-slate-400 mt-0.5">
-                        {formatFileSize(file.fileSize)}
+                        {isLink ? 'External Link' : formatFileSize(file.fileSize)}
                       </p>
                     </div>
                   </div>
@@ -363,14 +378,14 @@ export const ReportManager: React.FC<ReportManagerProps> = ({
                       target="_blank"
                       rel="noopener noreferrer"
                       className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-800 transition-all"
-                      title="View File"
+                      title="Open Attachment"
                     >
                       <Eye size={13} />
                     </a>
                     <button
                       onClick={() => handleDeleteFile(file._id)}
                       className="p-1.5 rounded-lg border border-slate-200 text-slate-400 hover:bg-red-50 hover:text-red-500 hover:border-red-200 transition-all"
-                      title="Delete File"
+                      title="Delete Attachment"
                     >
                       <Trash2 size={13} />
                     </button>

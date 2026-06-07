@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import axios from 'axios';
 import { Navbar } from '../components/Navbar';
 import { FormEngine } from '../components/FormEngine';
 import { ReportManager } from '../components/ReportManager';
-import { ArrowLeft, Download, User, HeartPulse, Save, Upload } from 'lucide-react';
+import { ArrowLeft, Download, User, HeartPulse, Save, Link } from 'lucide-react';
 
 interface Patient {
   _id: string;
@@ -36,10 +36,7 @@ export const PatientDetails: React.FC = () => {
   const [activeTab, setActiveTab] = useState('personalAndFamilyHistory');
   const [exporting, setExporting] = useState(false);
   const [saveTrigger, setSaveTrigger] = useState(0);
-  
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [uploadingFile, setUploadingFile] = useState(false);
-  const [uploadError, setUploadError] = useState('');
+  const [attachingLink, setAttachingLink] = useState(false);
   
   // Real-time PIBO scores state
   const [scores, setScores] = useState<ScoreState>({
@@ -112,33 +109,38 @@ export const PatientDetails: React.FC = () => {
     setSaveTrigger(prev => prev + 1);
   };
 
-  const handleUploadClick = () => {
-    fileInputRef.current?.click();
-  };
+  const handleHeaderAddLink = async () => {
+    const fileName = prompt("Enter Link Title (e.g. Chest CT Scan Google Drive):");
+    if (fileName === null) return; // cancelled
+    if (!fileName.trim()) {
+      alert("Link Title is required.");
+      return;
+    }
+    
+    const storageUrl = prompt("Enter Link URL (e.g. https://drive.google.com/...):");
+    if (storageUrl === null) return; // cancelled
+    if (!storageUrl.trim()) {
+      alert("Link URL is required.");
+      return;
+    }
 
-  const handleHeaderFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    if (!storageUrl.trim().startsWith('http://') && !storageUrl.trim().startsWith('https://')) {
+      alert("Invalid URL. Must start with http:// or https://");
+      return;
+    }
 
-    setUploadingFile(true);
-    setUploadError('');
-
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('patientId', id!);
-
+    setAttachingLink(true);
     try {
-      await axios.post('/reports/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+      await axios.post('/reports/link', {
+        patientId: id!,
+        fileName: fileName.trim(),
+        storageUrl: storageUrl.trim()
       });
-      refetch(); // Refresh context to show new file
+      refetch(); // Refresh context to show new link
     } catch (err: any) {
-      const msg = err.response?.data?.message || 'Failed to upload document.';
-      setUploadError(msg);
-      alert(msg);
+      alert(err.response?.data?.message || 'Failed to attach medical link.');
     } finally {
-      setUploadingFile(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
+      setAttachingLink(false);
     }
   };
 
@@ -270,22 +272,15 @@ export const PatientDetails: React.FC = () => {
                 </button>
 
                 <button
-                  onClick={handleUploadClick}
-                  disabled={uploadingFile}
+                  onClick={handleHeaderAddLink}
+                  disabled={attachingLink}
                   className="flex items-center gap-1.5 px-4 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-semibold text-xs rounded-xl shadow-sm transition-all"
-                  id="header-upload-btn"
-                  title="Upload PDF, DOCX, PNG, JPG, JPEG files"
+                  id="header-link-btn"
+                  title="Attach external medical web link"
                 >
-                  <Upload size={14} />
-                  {uploadingFile ? 'Uploading...' : 'Upload File'}
+                  <Link size={14} />
+                  {attachingLink ? 'Attaching...' : 'Attach Link'}
                 </button>
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleHeaderFileUpload}
-                  className="hidden"
-                  accept=".pdf,.docx,.png,.jpg,.jpeg"
-                />
 
                 <button
                   onClick={handleExportExcel}
@@ -300,13 +295,6 @@ export const PatientDetails: React.FC = () => {
               </div>
             </div>
           </div>
-
-          {/* Upload error display inside header banner */}
-          {uploadError && (
-            <div className="mt-4 p-3 bg-red-50 border border-red-100 text-red-600 rounded-lg text-xs font-medium animate-pulse">
-              {uploadError}
-            </div>
-          )}
         </div>
 
         {/* Workspace Layout: Tabs (Left), Active workspace panel (Right) */}
