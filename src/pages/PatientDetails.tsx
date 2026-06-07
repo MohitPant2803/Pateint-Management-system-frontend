@@ -5,6 +5,7 @@ import axios from 'axios';
 import { Navbar } from '../components/Navbar';
 import { FormEngine } from '../components/FormEngine';
 import { ReportManager } from '../components/ReportManager';
+import { AttachLinkModal } from '../components/AttachLinkModal';
 import { ArrowLeft, Download, User, HeartPulse, Save, Link } from 'lucide-react';
 
 interface Patient {
@@ -37,6 +38,7 @@ export const PatientDetails: React.FC = () => {
   const [exporting, setExporting] = useState(false);
   const [saveTrigger, setSaveTrigger] = useState(0);
   const [attachingLink, setAttachingLink] = useState(false);
+  const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
   
   // Real-time PIBO scores state
   const [scores, setScores] = useState<ScoreState>({
@@ -109,36 +111,21 @@ export const PatientDetails: React.FC = () => {
     setSaveTrigger(prev => prev + 1);
   };
 
-  const handleHeaderAddLink = async () => {
-    const fileName = prompt("Enter Link Title (e.g. Chest CT Scan Google Drive):");
-    if (fileName === null) return; // cancelled
-    if (!fileName.trim()) {
-      alert("Link Title is required.");
-      return;
-    }
-    
-    const storageUrl = prompt("Enter Link URL (e.g. https://drive.google.com/...):");
-    if (storageUrl === null) return; // cancelled
-    if (!storageUrl.trim()) {
-      alert("Link URL is required.");
-      return;
-    }
+  const handleHeaderAddLink = () => {
+    setIsLinkModalOpen(true);
+  };
 
-    if (!storageUrl.trim().startsWith('http://') && !storageUrl.trim().startsWith('https://')) {
-      alert("Invalid URL. Must start with http:// or https://");
-      return;
-    }
-
+  const handleLinkSubmit = async (title: string, url: string) => {
     setAttachingLink(true);
     try {
       await axios.post('/reports/link', {
         patientId: id!,
-        fileName: fileName.trim(),
-        storageUrl: storageUrl.trim()
+        fileName: title,
+        storageUrl: url
       });
       refetch(); // Refresh context to show new link
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to attach medical link.');
+      throw new Error(err.response?.data?.message || 'Failed to attach medical link.');
     } finally {
       setAttachingLink(false);
     }
@@ -400,6 +387,13 @@ export const PatientDetails: React.FC = () => {
         </div>
 
       </main>
+
+      <AttachLinkModal
+        isOpen={isLinkModalOpen}
+        onClose={() => setIsLinkModalOpen(false)}
+        onSubmit={handleLinkSubmit}
+        submitting={attachingLink}
+      />
     </div>
   );
 };
