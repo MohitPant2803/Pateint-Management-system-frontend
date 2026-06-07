@@ -379,8 +379,9 @@ export const FormEngine: React.FC<FormEngineProps> = ({
                     {field.options.map((opt) => {
                       const isChecked = String(formData[field.fieldKey]) === String(opt.value);
                       return (
-                        <label
+                        <div
                           key={opt.value}
+                          onClick={() => handleFieldChange(field.fieldKey, opt.value)}
                           className={`flex items-center gap-2 px-3.5 py-2 rounded-xl border text-sm font-semibold cursor-pointer select-none transition-all ${
                             isChecked
                               ? 'bg-sky-50 border-sky-300 text-sky-700 shadow-sm'
@@ -392,11 +393,11 @@ export const FormEngine: React.FC<FormEngineProps> = ({
                             name={field.fieldKey}
                             value={opt.value}
                             checked={isChecked}
-                            onChange={() => handleFieldChange(field.fieldKey, opt.value)}
-                            className="sr-only"
+                            readOnly
+                            className="sr-only pointer-events-none"
                           />
                           <span>{opt.label}</span>
-                        </label>
+                        </div>
                       );
                     })}
                   </div>
@@ -408,8 +409,9 @@ export const FormEngine: React.FC<FormEngineProps> = ({
                     {field.options.map((opt) => {
                       const isChecked = formData[field.fieldKey]?.[opt.value] === true;
                       return (
-                        <label
+                        <div
                           key={opt.value}
+                          onClick={() => handleCheckboxChange(field.fieldKey, opt.value, !isChecked)}
                           className={`flex items-center gap-2 px-3.5 py-2 rounded-xl border text-sm font-semibold cursor-pointer select-none transition-all ${
                             isChecked
                               ? 'bg-sky-50 border-sky-300 text-sky-700 shadow-sm'
@@ -419,11 +421,11 @@ export const FormEngine: React.FC<FormEngineProps> = ({
                           <input
                             type="checkbox"
                             checked={isChecked}
-                            onChange={(e) => handleCheckboxChange(field.fieldKey, opt.value, e.target.checked)}
-                            className="rounded text-sky-500 focus:ring-sky-500 border-slate-300"
+                            readOnly
+                            className="rounded text-sky-500 focus:ring-sky-500 border-slate-300 pointer-events-none"
                           />
                           <span>{opt.label}</span>
-                        </label>
+                        </div>
                       );
                     })}
                   </div>
