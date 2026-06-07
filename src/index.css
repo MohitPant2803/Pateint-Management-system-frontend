@@ -19,6 +19,16 @@
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
   }
+
+  button,
+  select,
+  a,
+  label,
+  input[type="checkbox"],
+  input[type="radio"],
+  .cursor-pointer {
+    cursor: pointer !important;
+  }
 }
 
 /* Custom premium scrollbar styling */
