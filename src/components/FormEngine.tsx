@@ -28,6 +28,8 @@ interface FormSchema {
 interface FormEngineProps {
   patientId: string;
   activeSectionKey: string;
+  saveTrigger?: number;
+  initialForm?: any;
   onScoresCalculated: (scores: {
     pibo_score1: number;
     pibo_score2: number;
@@ -35,12 +37,16 @@ interface FormEngineProps {
     totalPiboScore: number;
     predictionResult: string;
   }) => void;
+  onUpdate?: () => void;
 }
 
 export const FormEngine: React.FC<FormEngineProps> = ({
   patientId,
   activeSectionKey,
-  onScoresCalculated
+  saveTrigger,
+  initialForm,
+  onScoresCalculated,
+  onUpdate
 }) => {
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'error' | 'idle'>('idle');
@@ -56,23 +62,16 @@ export const FormEngine: React.FC<FormEngineProps> = ({
     }
   });
 
-  // 2. Fetch patient form answers
-  const { data: patientForm, isLoading: loadingForm } = useQuery({
-    queryKey: ['patientForm', patientId],
-    queryFn: async () => {
-      const res = await axios.get(`/forms/patient/${patientId}`);
-      return res.data.data;
-    }
-  });
+  // Form data is passed as a prop from the parent patientContext
 
-  // Load answers into state on fetch
+  // Load answers into state on fetch/prop change
   useEffect(() => {
-    if (patientForm && patientForm.sections) {
+    if (initialForm && initialForm.sections) {
       const flattenedAnswers: Record<string, any> = {};
-      const sectionKeys = Object.keys(patientForm.sections);
+      const sectionKeys = Object.keys(initialForm.sections);
       
       for (const sectionKey of sectionKeys) {
-        const sectionData = patientForm.sections[sectionKey] || {};
+        const sectionData = initialForm.sections[sectionKey] || {};
         // Mongoose maps can be plain objects or nested. Copy them
         Object.keys(sectionData).forEach(key => {
           flattenedAnswers[key] = sectionData[key];
@@ -80,7 +79,14 @@ export const FormEngine: React.FC<FormEngineProps> = ({
       }
       setFormData(flattenedAnswers);
     }
-  }, [patientForm]);
+  }, [initialForm]);
+
+  // Listen for manual save triggers from the parent page header
+  useEffect(() => {
+    if (saveTrigger && saveTrigger > 0) {
+      handleManualSave();
+    }
+  }, [saveTrigger]);
 
   const activeSchema = schemas.find(s => s.sectionKey === activeSectionKey);
 
@@ -182,6 +188,7 @@ export const FormEngine: React.FC<FormEngineProps> = ({
         if (res.data.data?.calculatedValues) {
           onScoresCalculated(res.data.data.calculatedValues);
         }
+        onUpdate?.();
       }
     } catch (err: any) {
       setSaveStatus('error');
@@ -241,7 +248,7 @@ export const FormEngine: React.FC<FormEngineProps> = ({
     };
   }, []);
 
-  if (loadingSchema || loadingForm) {
+  if (loadingSchema || !initialForm) {
     return (
       <div className="py-20 flex flex-col items-center justify-center">
         <div className="w-8 h-8 border-4 border-slate-200 border-t-sky-500 rounded-full animate-spin"></div>

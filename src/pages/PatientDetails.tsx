@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import axios from 'axios';
 import { Navbar } from '../components/Navbar';
 import { FormEngine } from '../components/FormEngine';
 import { ReportManager } from '../components/ReportManager';
-import { ArrowLeft, Download, User, HeartPulse } from 'lucide-react';
+import { ArrowLeft, Download, User, HeartPulse, Save, Upload } from 'lucide-react';
 
 interface Patient {
   _id: string;
@@ -19,6 +19,7 @@ interface Patient {
   notes?: string;
   currentPiboScore: number;
   lastViewedAt: string;
+  updatedAt: string;
 }
 
 interface ScoreState {
@@ -34,6 +35,11 @@ export const PatientDetails: React.FC = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('personalAndFamilyHistory');
   const [exporting, setExporting] = useState(false);
+  const [saveTrigger, setSaveTrigger] = useState(0);
+  
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [uploadError, setUploadError] = useState('');
   
   // Real-time PIBO scores state
   const [scores, setScores] = useState<ScoreState>({
@@ -44,9 +50,15 @@ export const PatientDetails: React.FC = () => {
     predictionResult: 'Control'
   });
 
-  // Fetch Patient Details
-  const { data: patient, isLoading, error } = useQuery<Patient>({
-    queryKey: ['patient', id],
+  // Fetch Patient Unified Context (demographics, form, reports, files, auditLogs)
+  const { data: context, isLoading, error, refetch } = useQuery<{
+    patient: Patient;
+    form: any;
+    reports: any[];
+    files: any[];
+    auditLogs: any[];
+  }>({
+    queryKey: ['patientContext', id],
     queryFn: async () => {
       const res = await axios.get(`/patients/${id}`);
       return res.data.data;
@@ -54,19 +66,17 @@ export const PatientDetails: React.FC = () => {
     enabled: !!id
   });
 
-  // Load backend calculated scores on fetch
+  const patient = context?.patient;
+  const initialForm = context?.form;
+  const reports = context?.reports || [];
+  const files = context?.files || [];
+
+  // Sync initial scores from patientContext once loaded/updated
   useEffect(() => {
-    if (patient) {
-      // Fetch initial scores from patient form data
-      axios.get(`/forms/patient/${id}`).then(res => {
-        if (res.data.success && res.data.data?.calculatedValues) {
-          setScores(res.data.data.calculatedValues);
-        }
-      }).catch(err => {
-        console.error('Error fetching initial patient scores:', err);
-      });
+    if (initialForm?.calculatedValues) {
+      setScores(initialForm.calculatedValues);
     }
-  }, [patient, id]);
+  }, [context, initialForm]);
 
   const handleExportExcel = async () => {
     if (!id || !patient) return;
@@ -96,6 +106,52 @@ export const PatientDetails: React.FC = () => {
 
   const handleScoresCalculated = (newScores: ScoreState) => {
     setScores(newScores);
+  };
+
+  const handleHeaderSave = () => {
+    setSaveTrigger(prev => prev + 1);
+  };
+
+  const handleUploadClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleHeaderFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingFile(true);
+    setUploadError('');
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('patientId', id!);
+
+    try {
+      await axios.post('/reports/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      refetch(); // Refresh context to show new file
+    } catch (err: any) {
+      const msg = err.response?.data?.message || 'Failed to upload document.';
+      setUploadError(msg);
+      alert(msg);
+    } finally {
+      setUploadingFile(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const formatUpdatedAt = (dateStr?: string) => {
+    if (!dateStr) return '';
+    try {
+      return new Date(dateStr).toLocaleString(undefined, {
+        dateStyle: 'medium',
+        timeStyle: 'short'
+      });
+    } catch (e) {
+      return dateStr;
+    }
   };
 
   if (isLoading) {
@@ -138,30 +194,20 @@ export const PatientDetails: React.FC = () => {
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
         
-        {/* Navigation Breadcrumb & Actions */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+        {/* Navigation Breadcrumb */}
+        <div className="mb-6">
           <button
             onClick={() => navigate('/dashboard')}
-            className="flex items-center gap-1.5 text-slate-500 hover:text-slate-800 text-sm font-bold group self-start"
+            className="flex items-center gap-1.5 text-slate-500 hover:text-slate-800 text-sm font-bold group"
           >
             <ArrowLeft size={16} className="transition-transform group-hover:-translate-x-0.5" />
             Back to Cohort Dashboard
           </button>
-
-          <button
-            onClick={handleExportExcel}
-            disabled={exporting}
-            className="flex items-center justify-center gap-2 px-4 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-semibold text-xs rounded-xl shadow-sm transition-all"
-            id="export-excel-btn"
-          >
-            <Download size={14} />
-            {exporting ? 'Generating Excel...' : 'Export Patient to Excel'}
-          </button>
         </div>
 
-        {/* Patient Demographics Banner */}
+        {/* Patient Demographics & Action Header Banner */}
         <div className="bg-white rounded-2xl border border-slate-100 shadow-premium p-6 mb-6">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6">
             <div className="flex items-start gap-4">
               <div className="w-12 h-12 rounded-xl bg-sky-50 flex items-center justify-center text-sky-600 shrink-0">
                 <User size={24} />
@@ -173,6 +219,9 @@ export const PatientDetails: React.FC = () => {
                   </h2>
                   <span className="px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[10px] font-black uppercase tracking-wider" id="patient-header-id">
                     ID: {patient.patientId}
+                  </span>
+                  <span className="text-slate-400 text-xs font-semibold" id="patient-header-updatedat">
+                    Updated At: {formatUpdatedAt(patient.updatedAt)}
                   </span>
                 </div>
                 
@@ -186,25 +235,78 @@ export const PatientDetails: React.FC = () => {
               </div>
             </div>
 
-            {/* Sticky/Banner score display */}
-            <div className="flex items-center gap-3 bg-slate-50 p-4 rounded-xl border border-slate-100 self-stretch md:self-auto justify-between md:justify-start">
-              <div className="text-right">
-                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Cohort Scoring</p>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <span className={`text-xs font-black ${
-                    scores.predictionResult === 'PIBO' ? 'text-rose-600' : 'text-emerald-600'
-                  }`}>
-                    {scores.predictionResult === 'PIBO' ? 'PIBO Predicted' : 'Control Case'}
-                  </span>
+            {/* Header Actions & Score Display */}
+            <div className="flex flex-wrap items-center gap-4">
+              {/* Score breakdown banner widget */}
+              <div className="flex items-center gap-3 bg-slate-50 p-4 rounded-xl border border-slate-100 justify-between md:justify-start">
+                <div className="text-right">
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Cohort Scoring</p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className={`text-xs font-black ${
+                      scores.predictionResult === 'PIBO' ? 'text-rose-600' : 'text-emerald-600'
+                    }`}>
+                      {scores.predictionResult === 'PIBO' ? 'PIBO Predicted' : 'Control Case'}
+                    </span>
+                  </div>
+                </div>
+                <div className="w-px h-8 bg-slate-200"></div>
+                <div className="text-center px-1">
+                  <span className="text-xl font-black text-slate-800">{scores.totalPiboScore}</span>
+                  <span className="text-xs text-slate-400 font-bold">/11</span>
                 </div>
               </div>
-              <div className="w-px h-8 bg-slate-200"></div>
-              <div className="text-center px-1">
-                <span className="text-xl font-black text-slate-800">{scores.totalPiboScore}</span>
-                <span className="text-xs text-slate-400 font-bold">/11</span>
+
+              {/* Action Buttons Group */}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleHeaderSave}
+                  disabled={activeTab === 'reports'}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-sky-500 hover:bg-sky-600 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed text-white font-semibold text-xs rounded-xl shadow-sm transition-all"
+                  id="header-save-btn"
+                  title="Save REDCap form entries manually"
+                >
+                  <Save size={14} />
+                  Save
+                </button>
+
+                <button
+                  onClick={handleUploadClick}
+                  disabled={uploadingFile}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-semibold text-xs rounded-xl shadow-sm transition-all"
+                  id="header-upload-btn"
+                  title="Upload PDF, DOCX, PNG, JPG, JPEG files"
+                >
+                  <Upload size={14} />
+                  {uploadingFile ? 'Uploading...' : 'Upload File'}
+                </button>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleHeaderFileUpload}
+                  className="hidden"
+                  accept=".pdf,.docx,.png,.jpg,.jpeg"
+                />
+
+                <button
+                  onClick={handleExportExcel}
+                  disabled={exporting}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-semibold text-xs rounded-xl shadow-sm transition-all"
+                  id="header-export-btn"
+                  title="Export complete patient history and form data to Excel"
+                >
+                  <Download size={14} />
+                  {exporting ? 'Exporting...' : 'Export Excel'}
+                </button>
               </div>
             </div>
           </div>
+
+          {/* Upload error display inside header banner */}
+          {uploadError && (
+            <div className="mt-4 p-3 bg-red-50 border border-red-100 text-red-600 rounded-lg text-xs font-medium animate-pulse">
+              {uploadError}
+            </div>
+          )}
         </div>
 
         {/* Workspace Layout: Tabs (Left), Active workspace panel (Right) */}
@@ -289,12 +391,20 @@ export const PatientDetails: React.FC = () => {
           {/* Right 3 Columns: Active Tab workspace */}
           <div className="lg:col-span-3">
             {activeTab === 'reports' ? (
-              <ReportManager patientId={patient._id} />
+              <ReportManager
+                patientId={patient._id}
+                reports={reports}
+                files={files}
+                onUpdate={refetch}
+              />
             ) : (
               <FormEngine
                 patientId={patient._id}
                 activeSectionKey={activeTab}
+                saveTrigger={saveTrigger}
+                initialForm={initialForm}
                 onScoresCalculated={handleScoresCalculated}
+                onUpdate={refetch}
               />
             )}
           </div>

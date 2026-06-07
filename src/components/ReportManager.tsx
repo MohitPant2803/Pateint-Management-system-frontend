@@ -40,9 +40,17 @@ interface UploadedFile {
 
 interface ReportManagerProps {
   patientId: string;
+  reports: Report[];
+  files: UploadedFile[];
+  onUpdate?: () => void;
 }
 
-export const ReportManager: React.FC<ReportManagerProps> = ({ patientId }) => {
+export const ReportManager: React.FC<ReportManagerProps> = ({ 
+  patientId,
+  reports = [],
+  files = [],
+  onUpdate
+}) => {
   // Modal states
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
@@ -60,23 +68,7 @@ export const ReportManager: React.FC<ReportManagerProps> = ({ patientId }) => {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
 
-  // 1. Fetch patient written reports
-  const { data: reports = [], refetch: refetchReports, isLoading: loadingReports } = useQuery<Report[]>({
-    queryKey: ['reports', patientId],
-    queryFn: async () => {
-      const res = await axios.get(`/reports/patient/${patientId}`);
-      return res.data.data;
-    }
-  });
-
-  // 2. Fetch patient uploaded files
-  const { data: files = [], refetch: refetchFiles, isLoading: loadingFiles } = useQuery<UploadedFile[]>({
-    queryKey: ['files', patientId],
-    queryFn: async () => {
-      const res = await axios.get(`/reports/upload/patient/${patientId}`);
-      return res.data.data;
-    }
-  });
+  // Reports and files are passed as props from the parent patientContext
 
   // 3. Fetch specific report versions history
   const { data: historyData } = useQuery<{ report: Report; versions: ReportVersion[] }>({
@@ -132,7 +124,7 @@ export const ReportManager: React.FC<ReportManagerProps> = ({ patientId }) => {
           summary: reportSummary.trim()
         });
       }
-      refetchReports();
+      onUpdate?.();
       setIsReportModalOpen(false);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Error occurred while saving report.');
@@ -148,7 +140,7 @@ export const ReportManager: React.FC<ReportManagerProps> = ({ patientId }) => {
 
     try {
       await axios.delete(`/reports/${id}`);
-      refetchReports();
+      onUpdate?.();
     } catch (err) {
       alert('Failed to delete report.');
     }
@@ -170,7 +162,7 @@ export const ReportManager: React.FC<ReportManagerProps> = ({ patientId }) => {
       await axios.post('/reports/upload', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
-      refetchFiles();
+      onUpdate?.();
     } catch (err: any) {
       setUploadError(err.response?.data?.message || 'Failed to upload document.');
     } finally {
@@ -187,7 +179,7 @@ export const ReportManager: React.FC<ReportManagerProps> = ({ patientId }) => {
 
     try {
       await axios.delete(`/reports/upload/${id}`);
-      refetchFiles();
+      onUpdate?.();
     } catch (err) {
       alert('Failed to delete file.');
     }
@@ -238,9 +230,7 @@ export const ReportManager: React.FC<ReportManagerProps> = ({ patientId }) => {
           </button>
         </div>
 
-        {loadingReports ? (
-          <div className="py-12 text-center text-slate-400">Loading reports list...</div>
-        ) : reports.length === 0 ? (
+        {reports.length === 0 ? (
           <div className="bg-white rounded-2xl border border-slate-100 shadow-premium p-12 text-center text-slate-400">
             No reports logged for this patient. Click "Write Report" to create one.
           </div>
@@ -336,9 +326,7 @@ export const ReportManager: React.FC<ReportManagerProps> = ({ patientId }) => {
         )}
 
         {/* Files List */}
-        {loadingFiles ? (
-          <div className="text-center text-slate-400 text-xs py-4">Loading attachments...</div>
-        ) : files.length === 0 ? (
+        {files.length === 0 ? (
           <div className="bg-white border border-slate-100 shadow-premium p-6 rounded-2xl text-center text-xs text-slate-400">
             No attached files. Upload medical scans, consents, or labs.
           </div>
