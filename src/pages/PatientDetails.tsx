@@ -190,7 +190,7 @@ export const PatientDetails: React.FC = () => {
             className="flex items-center gap-1.5 text-slate-500 hover:text-slate-800 text-sm font-bold group"
           >
             <ArrowLeft size={16} className="transition-transform group-hover:-translate-x-0.5" />
-            Back to Cohort Dashboard
+            Back to Dashboard
           </button>
         </div>
 
