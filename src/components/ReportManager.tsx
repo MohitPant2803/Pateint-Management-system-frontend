@@ -5,6 +5,7 @@ import {
   FileText, Calendar, Trash2, Edit3, History, Eye, Plus, X, File, Image, Link
 } from 'lucide-react';
 import { API_URL } from '../context/AuthContext';
+import { ConfirmDeleteModal } from './ConfirmDeleteModal';
 
 interface Report {
   _id: string;
@@ -68,6 +69,10 @@ export const ReportManager: React.FC<ReportManagerProps> = ({
   const [linkTitle, setLinkTitle] = useState('');
   const [linkUrl, setLinkUrl] = useState('');
   const [submittingLink, setSubmittingLink] = useState(false);
+
+  // Delete modal states
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; type: 'report' | 'file'; title: string; message: string } | null>(null);
 
   // Reports and files are passed as props from the parent patientContext
 
@@ -134,17 +139,14 @@ export const ReportManager: React.FC<ReportManagerProps> = ({
     }
   };
 
-  const handleDeleteReport = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this report and its entire history? This cannot be undone.')) {
-      return;
-    }
-
-    try {
-      await axios.delete(`/reports/${id}`);
-      onUpdate?.();
-    } catch (err) {
-      alert('Failed to delete report.');
-    }
+  const handleDeleteReport = (id: string) => {
+    setDeleteTarget({
+      id,
+      type: 'report',
+      title: 'Delete Report',
+      message: 'Are you sure you want to delete this report and its entire history? This cannot be undone.'
+    });
+    setIsDeleteModalOpen(true);
   };
 
   // File Upload trigger
@@ -175,16 +177,30 @@ export const ReportManager: React.FC<ReportManagerProps> = ({
     }
   };
 
-  const handleDeleteFile = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this file attachment?')) {
-      return;
-    }
+  const handleDeleteFile = (id: string) => {
+    setDeleteTarget({
+      id,
+      type: 'file',
+      title: 'Delete File Attachment',
+      message: 'Are you sure you want to delete this file attachment? This action cannot be undone.'
+    });
+    setIsDeleteModalOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
 
     try {
-      await axios.delete(`/reports/upload/${id}`);
+      if (deleteTarget.type === 'report') {
+        await axios.delete(`/reports/${deleteTarget.id}`);
+      } else {
+        await axios.delete(`/reports/upload/${deleteTarget.id}`);
+      }
       onUpdate?.();
     } catch (err) {
-      alert('Failed to delete file.');
+      alert(`Failed to delete ${deleteTarget.type}.`);
+    } finally {
+      setDeleteTarget(null);
     }
   };
 
@@ -574,6 +590,13 @@ export const ReportManager: React.FC<ReportManagerProps> = ({
         </div>
       )}
 
+      <ConfirmDeleteModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        onConfirm={handleConfirmDelete}
+        title={deleteTarget?.title || 'Delete Item'}
+        message={deleteTarget?.message || 'Are you sure you want to delete this item?'}
+      />
     </div>
   );
 };
