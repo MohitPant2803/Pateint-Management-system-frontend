@@ -53,10 +53,10 @@ export const Dashboard: React.FC = () => {
           <div>
             <h1 className="text-2xl font-bold text-slate-800 tracking-tight flex items-center gap-2">
               <UserCheck className="text-sky-500" size={24} />
-              Clinical Cohort Management
+              PIBO Clinical Registry System
             </h1>
             <p className="text-sm text-slate-500 font-medium">
-              Monitor, edit, and export clinical registry datasets for the PIBO research cohort.
+              Manage patient records, clinical evaluations, lung function data, and research outcomes within the PIBO cohort.
             </p>
           </div>
 

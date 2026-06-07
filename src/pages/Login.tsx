@@ -40,7 +40,7 @@ export const Login: React.FC = () => {
         <div className="mt-8 p-4 bg-slate-50/70 border border-slate-100 rounded-xl flex items-start gap-3">
           <Activity className="text-sky-500 shrink-0 mt-0.5" size={18} />
           <div className="text-left text-xs text-slate-500 leading-relaxed">
-            <span className="font-semibold text-slate-700">Dynamic Clinician Portal:</span> Access clinical scoring engines, automated lung function metrics, historical audit trails, and multi-sheet research exports.
+            Manage patient records, clinical evaluations, lung function studies, complementary investigations, reports, and PIBO scoring through a centralized research platform.
           </div>
         </div>
 
@@ -75,7 +75,7 @@ export const Login: React.FC = () => {
 
         <div className="mt-8 flex items-center justify-center gap-1.5 text-[11px] text-slate-400 font-medium">
           <ShieldCheck size={14} className="text-slate-400" />
-          <span>Strict Multi-Doctor Security Filters Enabled</span>
+          <span>Secure Multi-Doctor Access Control Enabled</span>
         </div>
       </div>
     </div>
